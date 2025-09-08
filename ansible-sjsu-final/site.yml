@@ -1,0 +1,111 @@
+---
+- name: Deploy webserver (Ubuntu + Nginx)
+  hosts: webservers
+  become: yes
+  tags: [deploy]
+  vars:
+    web_root: /var/www/sjsu
+    nginx_site_name: sjsu
+
+  tasks:
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Create web root
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Place index.html
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: "{{ web_root }}/index.html"
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: Create nginx server block
+      ansible.builtin.template:
+        src: templates/sjsu-nginx.conf.j2
+        dest: "/etc/nginx/sites-available/{{ nginx_site_name }}"
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Enable site
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ nginx_site_name }}"
+        dest: "/etc/nginx/sites-enabled/{{ nginx_site_name }}"
+        state: link
+      notify: reload nginx
+
+    - name: Disable default site (optional)
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: reload nginx
+
+    - name: Ensure nginx is running and enabled
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.shell: nginx -t
+      notify: do reload
+
+    - name: do reload
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+- name: Undeploy webserver
+  hosts: webservers
+  become: yes
+  tags: [undeploy]
+  vars:
+    web_root: /var/www/sjsu
+    nginx_site_name: sjsu
+
+  tasks:
+    - name: Stop nginx if present
+      ansible.builtin.service:
+        name: nginx
+        state: stopped
+      ignore_errors: yes
+
+    - name: Remove enabled site symlink
+      ansible.builtin.file:
+        path: "/etc/nginx/sites-enabled/{{ nginx_site_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove site file
+      ansible.builtin.file:
+        path: "/etc/nginx/sites-available/{{ nginx_site_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove web root
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Uninstall nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: absent
+        purge: yes
+      ignore_errors: yes
