@@ -85,14 +85,4 @@ ansible-playbook -i inventory.ini site.yml --tags undeploy
 
 ---
 
-## GitHub notes
-- Don’t commit private keys. This repo’s `.gitignore` ignores `*.pem` and your local `inventory.ini`.
-- Commit with:
-  ```bash
-  git init
-  git add .
-  git commit -m "SJSU Ansible webservers (deploy/undeploy)"
-  git branch -M main
-  git remote add origin https://github.com/<you>/<repo>.git
-  git push -u origin main
-  ```
+
